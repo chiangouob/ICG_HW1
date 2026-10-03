@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+﻿#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -154,8 +154,8 @@ int main() {
     // GLFW: initialize and configure
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);//openGL 3.3
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);//core profile only
 
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -169,6 +169,13 @@ int main() {
             "ICG 2026 HW1",
             nullptr,
             nullptr);
+            /* 
+                . 
+                . 
+                .(string)  
+                window mode(NULL) [FullScreen(glfwGetPrimaryMonitor)]
+                not share(NULL) [GLFWwindow*]
+            */
 
     if (!window) {
         std::cerr << "Failed to create GLFW window" << std::endl;
@@ -177,7 +184,7 @@ int main() {
     }
 
     glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);//remember to maintain global screen size variables
     glfwSetKeyCallback(window, keyCallback);
     glfwSwapInterval(1);
 
@@ -189,12 +196,31 @@ int main() {
 
 
     // TODO: Enable depth test and face culling.
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
 
 
     // Alpha support is provided by the starter code.
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    //this is BAD pratice, usually we enable blend after finishing drawing opaque things. 
+    //the following are from Gemini:
+    /*
+        glDisable(GL_BLEND);（確保混色關閉）
+
+        繪製所有「不透明」的物體。
+
+        glEnable(GL_BLEND);（開啟混色）
+
+        glDepthMask(GL_FALSE);（這步很關鍵：關閉深度寫入，確保透明物體彼此之間不會寫入深度互相遮擋，但依然會被第一步已經畫好的不透明物體遮擋）
+
+        將所有「透明」的物體依據距離攝影機的遠近，由遠到近進行排序。
+
+        繪製排序後的透明物體。
+
+        glDepthMask(GL_TRUE);（恢復深度寫入，保持 OpenGL 狀態機乾淨）
+    */ 
 
     // Initialize Object and Shader
     init();
@@ -235,6 +261,8 @@ int main() {
         shader->use();
 
 
+
+
         /*=================== Example of creating model matrix =======================
         1. translate
         glm::mat4 model(1.0f);
@@ -269,6 +297,24 @@ int main() {
         // The identity matrices below are placeholders so the starter compiles.
         glm::mat4 view(1.0f);
         glm::mat4 projection(1.0f);
+        
+
+        view = glm::lookAt(
+            glm::vec3(0.0f,14.0f,23.0f),
+            glm::vec3(0.0f,5.0f,0.0f),
+            glm::vec3(0.0f,1.0f,0.0f)
+        );
+
+        projection = glm::perspective(
+
+            //原理：定義垂直夾角FOV，再根據視窗長寬比得出水平夾角
+            glm::radians(45.0f),
+            (float)SCR_WIDTH/(float)SCR_HEIGHT,
+            0.1f,
+            1000.0f
+        );
+        
+
 
 
         // TODO: Scene Setup
@@ -277,6 +323,19 @@ int main() {
         // - Draw exactly three flowers at the fixed positions / scale.
         //
         // Suggested calls after implementing each function:
+
+        /*
+            const glm::vec3 GROUND_POSITION(0.0f, -0.5f, 0.0f);
+            const glm::vec3 GROUND_SCALE(70.0f, 1.0f, 40.0f);
+            const glm::vec3 GROUND_COLOR(0.25f, 0.65f, 0.20f);
+        */
+        
+        glm::mat4 groundModel(1.0f);
+        groundModel = glm::translate(groundModel,GROUND_POSITION);
+        groundModel = glm::scale(groundModel,GROUND_SCALE);
+        drawModel("cube",groundModel,view,projection,GROUND_COLOR,1.0f);
+
+
         drawBird(currentFrame, view, projection);
         drawFlowers(view, projection);
 
@@ -300,6 +359,11 @@ int main() {
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+        //glfwWaitEvents() : wait until at least one event arrives, otherwise, sleep.
+        //glfwWaitEventsTimeout(0.7) combines the both
+        //glfwPostEmptyEvent() provides an empty event for main thread(if sleeping) to wake up.
+        //Important concept: Don't assume WHEN will the callbacks happen.
+
     }
 
 
@@ -380,7 +444,7 @@ void processInput(
 }
 
 
-void keyCallback(
+void keyCallback(//FIFO
     GLFWwindow* window,
     int key,
     int scancode,
@@ -389,6 +453,23 @@ void keyCallback(
 
     // The action is one of GLFW_PRESS, GLFW_REPEAT or GLFW_RELEASE.
     // https://www.glfw.org/docs/3.3/input_guide.html
+
+    /*  
+        key: key token !!!與US鍵盤綁定，如AZERTY鍵盤的A實際上對應到GLFW_KEY_Q!!!
+        scancode: platform_specific regardless of whether it has key token or not, 
+        can be requested by calling glfwGetKeyScancode( GLFW_KEY_XX ).
+        action:GLFW_PRESS GLFW_REPEAT GLFW_RELEASE
+
+    */
+
+    /*
+
+        當持續按壓某個按鍵時，因為GLFW_PRESS只會觸發一次，(0.5秒之後變為GLFW_REPEAT，每秒固定發30次\
+        其實詳細數值由OS決定)，
+        所以callback特別適合拿來做單觸發處理；
+        反之，如果使用polling，只檢查按鍵狀態，則可以預期連續行為。
+    
+    */
 
 
     if (key == GLFW_KEY_ESCAPE &&
@@ -416,7 +497,7 @@ void drawModel(
     const glm::mat4& projection,
     const glm::vec3& color,
     float alpha) {
-
+    //BAD practice, we should not always pass view and projection.
     shader->set_uniform("projection", projection);
     shader->set_uniform("view", view);
     shader->set_uniform("model", model);
