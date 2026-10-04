@@ -60,7 +60,7 @@ const glm::vec3 BIRD_SCALE(0.20f);
 // You may change the ellipse size and flying speed.
 const float BIRD_RADIUS_X = 10.0f;
 const float BIRD_RADIUS_Z = 4.5f;
-const float BIRD_SPEED = 0.45f;
+const float BIRD_SPEED = 1.0f;
 
 const glm::vec3 FLOWER_POSITIONS[3] = {
     glm::vec3(-7.0f, 0.0f,  4.5f),
@@ -97,6 +97,8 @@ struct Spell {
     float smallSelfAngle = 0.0f;
     float orbitAngle = 0.0f;
 } spell;
+
+const float spelllastTime = 5.0f;
 
 const glm::vec3 MAGIC_BALL_ABOVE_POS(0.0f, 5.6f, 0.0f);
 const glm::vec3 MAGIC_BALL_FRONT_POS(0.0f, 2.4f, 4.5f);
@@ -482,6 +484,13 @@ void keyCallback(//FIFO
     // TODO: Press R to cast the spell.
     //
     // Pressing R while a spell is active should not restart the animation.
+
+    if(key == GLFW_KEY_R && action == GLFW_PRESS){
+        if(spell.active == false){
+            spell.elapsed = 0.0f;
+            spell.active = true;
+        }
+    }
 }
 
 
@@ -636,7 +645,36 @@ void drawBird(
     // Facing:
     //     vx = -rx * sin(t)
     //     vz =  rz * cos(t)
-    //     angle = atan2(vx, vz)
+    //     angle = atan2(vx, vz) ... 代表鳥初始朝+x (atan2特性，順序對調)
+    /*
+        // You may change the ellipse size and flying speed.
+        const float BIRD_RADIUS_X = 10.0f;
+        const float BIRD_RADIUS_Z = 4.5f;
+        const float BIRD_SPEED = 0.45f;
+        
+    */
+    
+    currentTime *= BIRD_SPEED;
+    
+
+    float b_x = BIRD_BASE_POSITION.x + BIRD_RADIUS_X/2 * glm::cos(currentTime);
+    float b_z = BIRD_BASE_POSITION.z + BIRD_RADIUS_Z * glm::sin(currentTime);
+    float b_y = BIRD_BASE_POSITION.y;
+    glm::vec3 b_pos = glm::vec3(b_x,b_y,b_z); 
+
+    glm::mat4 birdModel = glm::mat4(1.0f);
+    birdModel = glm::translate(birdModel,b_pos);
+
+    float v_x = (-1.0f) * BIRD_RADIUS_X * glm::sin(currentTime);
+    float v_z = (1.0f) * BIRD_RADIUS_Z * glm::cos(currentTime);
+    
+    float angle = atan2(v_x,v_z);
+
+    birdModel = glm::rotate(birdModel,angle,glm::vec3(0.0f,1.0f,0.0f));
+    birdModel = glm::scale(birdModel,BIRD_SCALE);
+
+    drawModel("bird",birdModel,view,projection,glm::vec3(1.0f,1.0f,1.0f),1.0f);
+    return;
 }
 
 
@@ -663,6 +701,46 @@ void drawFlowers(
     //
     // - Ignore the vertical component when deciding falling direction.
     // - Each flower should generally fall away from the slime.
+    
+    glm::vec3 FLOWER_leanArrows[3];
+    glm::vec3 FLOWER_rotateAxis[3];
+
+    glm::mat4 modelFlowers[3];
+
+    float currFrac = spell.elapsed / spelllastTime;
+    // 0.3 0.3 0.4
+    // down : 0.3 ~ (0.3 + 0.06 * 2)
+    // up : 0.6 ~ 0.9 
+    float angle = 0.0f;
+
+    if(currFrac >= 0.3f && currFrac <= 0.48f){
+        angle = (currFrac - 0.3f) * glm::radians(50.0f) / 0.18f;
+    }else if(currFrac >= 0.6 && currFrac <= 0.9){
+        angle = glm::radians(50.0f)* (1 - (currFrac - 0.6f) / 0.3f);
+    }else if(currFrac > 0.48f && currFrac < 0.6f){
+        angle = glm::radians(50.0f);
+    }
+
+    glm::vec3 colors[3] = {
+        glm::vec3(1.0f,0.0f,0.0f),
+        glm::vec3(0.0f,1.0f,0.0f),
+        glm::vec3(0.0f,0.0f,1.0f)
+    };
+
+    for(int i=0;i<3;i++){
+        FLOWER_leanArrows[i] = FLOWER_POSITIONS[i]-playerSlime.position;
+        FLOWER_rotateAxis[i] = glm::cross(glm::vec3(0.0f,1.0f,0.0f),FLOWER_leanArrows[i]);
+        
+        modelFlowers[i] = glm::mat4(1.0f);
+        modelFlowers[i] = glm::translate(modelFlowers[i],FLOWER_POSITIONS[i]);
+
+        modelFlowers[i] = glm::rotate(modelFlowers[i],angle,FLOWER_rotateAxis[i]);
+        drawModel("flower",modelFlowers[i],view,projection,colors[i],1.0f);
+    }
+    
+    return;
+    
+        
 }
 
 
@@ -672,7 +750,10 @@ void drawFlowers(
 
 void updateSpell(
     float deltaTime) {
-
+    //const float lastTime = 5.0f;
+    const float mainOmega = 1.0f;
+    const float revolveOmega = 1.0f;
+    const float smallOmega = 1.0f;
     // TODO: Update the spell animation state.
     //
     // Required behavior:
@@ -681,6 +762,22 @@ void updateSpell(
     // - Small magic balls orbit around the main ball.
     // - Animation speed / timing are up to you.
     // - End / reset the spell so R can cast again later.
+
+    if(spell.active == true){
+        if(spell.elapsed >= spelllastTime){
+            spell.active = false;
+            spell.elapsed = 0.0f;
+            spell.mainSelfAngle = 0.0f;
+            spell.orbitAngle = 0.0f;
+            spell.smallSelfAngle = 0.0f;
+            return;
+        }
+        spell.elapsed += deltaTime;
+        spell.mainSelfAngle += (mainOmega * deltaTime);
+        spell.orbitAngle += (revolveOmega * deltaTime);
+        spell.smallSelfAngle += (smallOmega * deltaTime);
+    }
+    return;
 }
 
 
