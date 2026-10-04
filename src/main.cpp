@@ -84,6 +84,12 @@ struct Slime {
     float hopTime = 0.0f;
 } playerSlime;
 
+const float totalHopTime = 1.0f;
+const float maxHopHeight = 2.0f;
+
+float buttomLength = 5.0f;
+
+
 
 // ============================================================================
 // Spell state
@@ -416,31 +422,65 @@ void processInput(
     // - Hopping is not required while flying.
     // - The character must not move below the ground.
 
+    /*
+        
+        struct Slime {
+            glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
+            float angle = 0.0f;
+            float speed = 5.0f;
+
+            bool movingHorizontally = false;
+            float hopTime = 0.0f;
+        } playerSlime;
+
+    */
+   playerSlime.movingHorizontally = false;
+
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-
+        playerSlime.movingHorizontally = true;
+        playerSlime.angle = glm::radians(90.0f);
+        playerSlime.position.z -= playerSlime.speed * deltaTime;
+        playerSlime.hopTime += deltaTime;
     }
 
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-
+        playerSlime.movingHorizontally = true;
+        playerSlime.angle = glm::radians(270.0f);
+        playerSlime.position.z += playerSlime.speed * deltaTime;
+        playerSlime.hopTime += deltaTime;
     }
 
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-
+        playerSlime.movingHorizontally = true;
+        playerSlime.angle = glm::radians(180.0f);
+        playerSlime.position.x -= playerSlime.speed * deltaTime;
+        playerSlime.hopTime += deltaTime;
     }
 
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-
+        playerSlime.movingHorizontally = true;
+        playerSlime.angle = glm::radians(0.0f);
+        playerSlime.position.x += playerSlime.speed * deltaTime;
+        playerSlime.hopTime += deltaTime;
     }
 
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-
+        playerSlime.movingHorizontally = false;
+        playerSlime.position.y += playerSlime.speed * deltaTime;
     }
 
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-
+        playerSlime.movingHorizontally = false;
+        if(
+            playerSlime.position.y - playerSlime.speed * deltaTime <=
+            GROUND_POSITION.y + 0.5*GROUND_SCALE.y
+        )   playerSlime.position.y = GROUND_POSITION.y + 0.5f *GROUND_SCALE.y;
+        else playerSlime.position.y -= playerSlime.speed * deltaTime;
     }
-
+    if(!playerSlime.movingHorizontally){
+        playerSlime.hopTime = 0.0f;
+    }
 
     // TODO: Ground boundary collision.
 }
@@ -600,13 +640,17 @@ void drawSlime(
     const glm::mat4& view,
     const glm::mat4& projection) {
 
-    glm::mat4 model(1.0f);
+    glm::mat4 slimeModel(1.0f);
 
 
+        
     // TODO: Build the shared root transformation.
     //
     // The root should contain the character's world position and facing
     // rotation. All slime parts should be children of this root.
+    
+    slimeModel = glm::translate(slimeModel,playerSlime.position);
+    slimeModel = glm::rotate(slimeModel,playerSlime.angle,glm::vec3(0.0f,1.0f,0.0f));
 
 
     // TODO: Slime hopping.
@@ -615,12 +659,48 @@ void drawSlime(
     // yOffset = H * abs(sin(w * t))
     //
     // Only apply hopping when the slime is moving horizontally on the ground.
+    
+    if(playerSlime.movingHorizontally == true){
+        if(playerSlime.hopTime >= totalHopTime ) playerSlime.hopTime -= totalHopTime;
+        float currHopTime = playerSlime.hopTime;
+        
+        float hopFrac = currHopTime / totalHopTime;
+    
 
+        float t = hopFrac * glm::radians(180.0f);
+
+        //playerSlime.position.y = maxHopHeight * glm::sin(t);
+        float y_dis = maxHopHeight * glm::sin(t);
+        slimeModel = glm::translate(slimeModel , glm::vec3(0.0f,y_dis,0.0f));
+
+    }
+        
+
+
+       
 
     // TODO: Draw the slime using at least 3 cubes.
     //
     // Reuse the same root matrix for all children.
     // The facing direction must be visually distinguishable.
+
+
+    //cube [-0.5,0.5]^3
+
+    //body
+
+    glm::mat4 body = slimeModel;
+    float scaleFactor = 3.0f; 
+    const glm::vec3 body_size(scaleFactor);
+    buttomLength = 0.5f *scaleFactor;
+    body = glm::translate(body,glm::vec3(0.0f,buttomLength,0.0f));
+    body = glm::scale(body,body_size);
+    drawModel("cube",body,view,projection,glm::vec3(float(128)/float(255), float(255)/float(255), 0),0.9f);
+
+
+
+    return;
+
 }
 
 
@@ -735,6 +815,7 @@ void drawFlowers(
         modelFlowers[i] = glm::translate(modelFlowers[i],FLOWER_POSITIONS[i]);
 
         modelFlowers[i] = glm::rotate(modelFlowers[i],angle,FLOWER_rotateAxis[i]);
+        modelFlowers[i] = glm::scale(modelFlowers[i],FLOWER_SCALE);
         drawModel("flower",modelFlowers[i],view,projection,colors[i],1.0f);
     }
     
