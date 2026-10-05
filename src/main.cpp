@@ -104,7 +104,7 @@ struct Spell {
     float orbitAngle = 0.0f;
 } spell;
 
-const float spelllastTime = 5.0f;
+const float spelllastTime = 9.0f;
 
 const glm::vec3 MAGIC_BALL_ABOVE_POS(0.0f, 5.6f, 0.0f);
 const glm::vec3 MAGIC_BALL_FRONT_POS(0.0f, 2.4f, 4.5f);
@@ -697,8 +697,19 @@ void drawSlime(
     body = glm::scale(body,body_size);
     drawModel("cube",body,view,projection,glm::vec3(float(128)/float(255), float(255)/float(255), 0),0.9f);
 
+    //eyes
+    glm::mat4 leftEye = slimeModel;
+    leftEye = glm::translate(leftEye,glm::vec3(0.4f * scaleFactor,0.7 * scaleFactor,0.3f *scaleFactor));
+    glm::vec3 leftEyesSaleFactor = 0.25f * body_size;
+    leftEye = glm::scale(leftEye,leftEyesSaleFactor);
+    drawModel("cube",leftEye,view,projection,glm::vec3(0.0f, 100/float(255), 80/float(255)),0.95f);
 
 
+    glm::mat4 rightEye = slimeModel;
+    rightEye = glm::translate(rightEye,glm::vec3(0.4f * scaleFactor,0.7 * scaleFactor,-0.3f *scaleFactor));
+    glm::vec3 rightEyesSaleFactor = 0.2f * body_size;
+    rightEye = glm::scale(rightEye,rightEyesSaleFactor);
+    drawModel("cube",rightEye,view,projection,glm::vec3(0.0f, 100/float(255), 80/float(255)),0.95f);
     return;
 
 }
@@ -809,6 +820,7 @@ void drawFlowers(
 
     for(int i=0;i<3;i++){
         FLOWER_leanArrows[i] = FLOWER_POSITIONS[i]-playerSlime.position;
+        FLOWER_leanArrows[i].y = 0; //這根本沒差 :(
         FLOWER_rotateAxis[i] = glm::cross(glm::vec3(0.0f,1.0f,0.0f),FLOWER_leanArrows[i]);
         
         modelFlowers[i] = glm::mat4(1.0f);
@@ -879,6 +891,85 @@ void drawMagic(
     // - Each small ball self-rotates.
     // - Four small balls orbit around the main ball.
     // - Four small balls should use visibly different colors.
+    glm::mat4 mainBallModel(1.0f);
+    mainBallModel = glm::translate(mainBallModel,playerSlime.position);
+    glm::vec3 rotateAxis(0.0f,1.0f,0.0f);
+    glm::vec3 frontVector(glm::cos(playerSlime.angle),0.0f,-1*glm::sin(playerSlime.angle));
+    glm::vec3 mainRotateAixs = glm::cross(rotateAxis,frontVector);
+    
+    
+    glm::vec3 radiusVector(5.0f,0.0f,0.0f);
+    glm::mat4 smallBallModels[4];
+    glm::vec3 colors[4] = {
+        glm::vec3(1.f,0.0f,0.0f),
+        glm::vec3(0.0f,1.0f,0.0f),
+        glm::vec3(0.0f,0.0f,1.0f),
+        glm::vec3(1.0f,1.0f,0.0f)
+    };
+    glm::vec3 smallBallsize(0.3f,0.3f,0.3f);
+    // 0.3 0.3 0.4
+    // down : 0.3 ~ (0.3 + 0.06 * 2)
+    // up : 0.6 ~ 0.9 
+    float mainAngle = 0.0f;
+    float frac = spell.elapsed / spelllastTime;
+    glm::vec3 mainBallPosition;
+    if(spell.active == true){
+        
+        float mainBallOmega = 2.0;
+        float mainBallAngle = glm::radians(360.0f) * frac * mainBallOmega;
+        
+        
+        if(frac <= 0.25f){
+            mainAngle = glm::radians(90.0f) * (frac) *4; // *0.25
+        }else if(frac > 0.25f && frac < 0.55f){
+            mainAngle = glm::radians(90.0f);
+        }else if(frac >= 0.55f && frac<=0.8f ){
+            mainAngle = glm::radians(90.0f) * (1-(frac-0.55f)*4);
+        }
+        //rotateAxis = glm::rotate(rotateAxis,mainAngle,mainRotateAixs);
+
+        
+        glm::mat4 rotMatrix(1.0f);
+        rotMatrix = glm::rotate(rotMatrix, mainAngle, mainRotateAixs);
+
+        
+        glm::vec4 rotatedVec = rotMatrix * glm::vec4(rotateAxis, 0.0f);
+
+        
+        rotateAxis = glm::vec3(rotatedVec);
+        //mainBallModel = glm::rotate(mainBallModel,mainAngle,mainRotateAixs);
+        //mainBallModel = glm::rotate(mainBallModel,mainAngle,glm::vec3(0.0f,1.0f,0.0f));
+        float t_ = mainAngle/glm::radians(90.0f);
+        glm::vec3 slimeCenter = playerSlime.position + glm::vec3(0.0f,buttomLength,0.0f);
+        mainBallModel = glm::translate(mainBallModel,glm::vec3(0.0f,buttomLength,0.0f));
+        float frontLength = glm::length(MAGIC_BALL_FRONT_POS)/glm::length(frontVector);  
+        mainBallPosition = (1-t_) * MAGIC_BALL_ABOVE_POS + t_*frontVector*frontLength;
+        mainBallModel = glm::translate(mainBallModel,mainBallPosition);
+        mainBallModel = glm::rotate(mainBallModel,mainAngle,mainRotateAixs);
+        mainBallModel = glm::rotate(mainBallModel,mainBallAngle,glm::vec3(0.0f,1.0f,0.0f));
+        mainBallModel = glm::scale(mainBallModel,glm::vec3(0.60f,0.6f,0.6f));
+        for(int i=0;i<4;i++){
+            smallBallModels[i] = mainBallModel;
+
+            //smallBallModels[i] = glm::rotate(smallBallModels[i],mainBallAngle + glm::radians(i*90.0f),rotateAxis);
+            smallBallModels[i] = glm::rotate(smallBallModels[i],mainBallAngle + glm::radians(i*90.0f),glm::vec3(0.0f,1.0f,0.0f));
+            smallBallModels[i] = glm::translate(smallBallModels[i],radiusVector);
+            //smallBallModels[i] = glm::rotate(smallBallModels[i],mainBallAngle,rotateAxis);
+            smallBallModels[i] = glm::rotate(smallBallModels[i], mainBallAngle*3, glm::vec3(0.0f, 1.0f, 0.0f));
+            smallBallModels[i] = glm::scale(smallBallModels[i],smallBallsize);
+            drawModel("magic_ball",smallBallModels[i],view,projection,colors[i],frac);
+        }
+        
+        
+
+
+
+        drawModel("magic_ball",mainBallModel,view,projection,glm::vec3(1.0f,1.0f,0.0f),frac);
+    
+    }
+
+
+    //Bonus:如果hopping動畫低點在空中，加入圓圈特效
 
 
     // TODO: Hierarchical transformation.
@@ -916,4 +1007,37 @@ void drawMagic(
     // - Beam forward direction should align with slime facing direction.
     // - Beam length gradually increases.
     // - Use translation + scale.
+
+    if( frac >=0.3f && frac<=0.55f ){
+        
+
+
+        /*
+            0.3 ~ 0.35
+            0.5 ~ 0.55    
+        */
+        const float beamLength = 15.0f; 
+        glm::mat4 beamModel(1.0f);
+        glm::vec3 mainBallWorldPosition = playerSlime.position + glm::vec3(0.0f,buttomLength,0.0f) + mainBallPosition;
+
+        
+        float currBeamScale = 1.0f;
+        if(frac >= 0.3f && frac <= 0.35f ){
+            currBeamScale = (frac-0.3f)/0.05f;
+        }else if(frac >= 0.5f && frac <= 0.55f){
+            currBeamScale = 1-((frac-0.5f)/0.05f);
+        }
+        glm::vec3 beamCenter = mainBallWorldPosition + frontVector * currBeamScale * beamLength/2.0f;
+        beamModel = glm::translate(beamModel,beamCenter);
+        beamModel = glm::rotate(beamModel,playerSlime.angle,glm::vec3(0.0f,1.0f,0.0f));
+        float tmp = currBeamScale*beamLength <= 0.001f ? 0.001f : currBeamScale*beamLength;//avoid shader bug , suggested by gemini
+        glm::vec3 beamScale(tmp,1.0f,1.0f);
+        
+        beamModel = glm::scale(beamModel,beamScale);
+
+        drawModel("cube",beamModel,view,projection,glm::vec3(float(173)/255.0f, float(216)/255.0f, float(230)/255.f),1.0f);
+
+
+    }
+    return ;
 }
